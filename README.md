@@ -243,96 +243,7 @@ npm run start:producer
 
 ---
 
-## 5. Live Demonstration Sequence (For Grading)
-
-Follow this step-by-step checklist during the live grading presentation:
-
-### Demo 1: Inspect the Avro Schema (10 seconds)
-Open and show [schemas/order.avsc](file:///c:/Users/HP/Desktop/Semester%208/BigData/Take-Home/schemas/order.avsc). Highlight the 3 fields (`orderId`, `product`, `price`).
-
-### Demo 2: Prove Avro Binary Serialization on the Topic
-Read raw bytes directly from the Kafka broker:
-```bash
-docker exec -it kafka kafka-console-consumer --bootstrap-server localhost:29092 --topic orders --from-beginning --max-messages 2
-```
-**Observation**: The output is unreadable binary garbage prefixed by the magic byte `0x00`. This proves the pipeline uses **real Avro binary serialization**, not plain JSON or text.
-
-### Demo 3: Real-Time Incremental Running Average
-Start the producer and consumer. Show that every received order immediately logs:
-`order ID`, `product`, `price`, `count (n)`, and the updated `running average`.
-
-### Demo 4: Transient Error & Exponential Backoff
-In a separate terminal, trigger an order configured to simulate temporary downstream failure:
-```bash
-npm run produce:transient
-```
-**Observation in Consumer**:
-```
-  [RETRY] Order order-7777: Attempt 1/3 failed (Simulated upstream payment gateway timeout (attempt 1)). Retrying in 1.0s...
-  [RETRY] Order order-7777: Attempt 2/3 failed (Simulated upstream payment gateway timeout (attempt 2)). Retrying in 2.0s...
-  [DEMO] Upstream recovered on attempt 3 for order order-7777!
-[CONSUMER] order=order-7777 product=High-Traffic Item    price=$ 199.95 | n=   4 avg=$ 248.55
-```
-*Point out the delays doubling: **1.0s**, then **2.0s**, followed by recovery on attempt 3.*
-
-### Demo 5: Poison Pill / Negative Price -> Dead Letter Queue
-Produce an order violating business invariants:
-```bash
-npm run produce:bad-price
-```
-**Observation**:
-- Consumer catches the `PermanentError`, logs the reason, and bypasses retry entirely.
-- The DLQ viewer (or UI dashboard) displays the full **JSON audit envelope**:
-  ```json
-  {
-    "failedAt": "2026-09-18T14:30:12.450Z",
-    "originalTopic": "orders",
-    "partition": 0,
-    "offset": "15",
-    "attempts": 3,
-    "errorReason": "Business rule violation: price must be positive, got -49.99 for order poison-9001",
-    "payload": { "orderId": "poison-9001", "product": "Defective Widget", "price": -49.99 }
-  }
-  ```
-- **Crucial check**: The consumer keeps running unharmed, subsequent orders process normally, and the running average is not corrupted.
-
-### Demo 6: Corrupt Binary Avro -> Dead Letter Queue
-Send raw, non-Avro corrupted bytes:
-```bash
-npm run produce:corrupt
-```
-**Observation**: Deserialization fails immediately and the corrupted message is safely quarantined to `orders.DLQ`.
-
-### Demo 7: Consumer Restart / Offset Resume Test
-1. Stop the consumer (`Ctrl + C`).
-2. Let the producer emit 5 orders.
-3. Restart the consumer (`npm run start:consumer`).
-4. **Observation**: Consumer picks up from the exact committed offset with zero message loss or duplicate counts.
-
----
-
-## 6. Examiner Q&A: Key Design Defenses
-
-### 1. Why Avro instead of JSON for the main topic?
-> **Answer**: Avro produces compact binary messages without repeating field keys on every single record, drastically reducing network bandwidth and storage overhead. Furthermore, Avro enforces a strict schema contract centrally registered in Schema Registry: malformed or incompatible messages fail immediately at serialization rather than corrupting downstream pipelines.
-
-### 2. Why is the Dead Letter Queue (DLQ) envelope JSON, not Avro?
-> **Answer**: A message lands in the DLQ precisely because it may have violated the Avro schema or consisted of unparseable raw bytes. Attempting to re-serialize invalid data back into Avro would cause secondary crashes. JSON provides universal serialization, ensuring any arbitrary failed payload and its error context (`failedAt`, `offset`, `errorReason`) can always be quarantined.
-
-### 3. Why use an incremental formula instead of `sum / count` at the end?
-> **Answer**: Streaming data is unbounded and continuous. Storing all historical prices in an array (`prices.push(price)`) requires $O(N)$ memory that will eventually crash the process with an out-of-memory error. The recurrence formula:
-> $$\text{average} = \text{average} + \frac{\text{price} - \text{average}}{\text{count}}$$
-> uses constant $O(1)$ memory (only two numbers), is numerically stable, and updates on every message.
-
-### 4. Why manual offset commits (`enable.auto.commit = false`)?
-> **Answer**: Kafka's auto-commit periodically commits offsets in the background regardless of whether a message was successfully handled. If the consumer crashes while processing a message, that message is lost forever. With manual commits, the consumer commits the offset **only after** successful aggregation or confirmed quarantine in the DLQ.
-
-### 5. Why separate Transient from Permanent errors?
-> **Answer**: Retrying unrecoverable errors (such as a negative price or schema mismatch) three times is pointless, delays the partition, and wastes compute. Validation runs first so permanent errors bypass retry immediately to DLQ, while transient errors (network hiccups, HTTP 503) use exponential backoff to avoid hammering a struggling downstream service.
-
----
-
-## 7. Automated Unit Tests
+## 5. Automated Unit Tests
 
 Run the automated test suite to verify validation rules, incremental math precision, and retry behavior:
 
@@ -360,7 +271,7 @@ All unit tests passed successfully!
 
 ---
 
-## 8. Configuration Reference (Environment Variables)
+## 6. Configuration Reference (Environment Variables)
 
 | Variable | Default | Description |
 |---|---|---|
@@ -376,7 +287,7 @@ All unit tests passed successfully!
 
 ---
 
-## 9. Repository Structure
+## 7. Repository Structure
 
 ```
 Take-Home/
