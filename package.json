@@ -1,0 +1,19 @@
+{
+  "name": "kafka-avro-orders",
+  "version": "1.0.0",
+  "description": "Kafka + Avro order streaming pipeline with real-time aggregation, retry logic, and DLQ",
+  "main": "producer/producer.js",
+  "scripts": {
+    "start:producer": "node producer/producer.js",
+    "start:consumer": "node consumer/consumer.js",
+    "start:dlq-viewer": "node consumer/dlq-viewer.js",
+    "produce:bad-price": "node producer/producer.js --bad-price",
+    "produce:corrupt": "node producer/producer.js --corrupt",
+    "produce:transient": "node producer/producer.js --transient",
+    "test": "node test/pipeline.test.js"
+  },
+  "dependencies": {
+    "@kafkajs/confluent-schema-registry": "^4.1.0",
+    "kafkajs": "^2.2.4"
+  }
+}
