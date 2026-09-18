@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kafka + Avro Pipeline Monitor</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <!-- Top Header -->
+    <header>
+      <div class="logo-area">
+        <div class="logo-icon">⚡</div>
+        <div class="title-group">
+          <h1>Kafka + Avro Stream Monitor</h1>
+          <p>Real-Time Pipeline Dashboard</p>
+        </div>
+      </div>
+      <div class="badges">
+        <div class="badge online" id="brokerBadge">
+          <span class="dot pulse"></span>
+          Broker: 9092
+        </div>
+        <div class="badge schema" id="registryBadge">
+          <span class="dot"></span>
+          Schema: order.avsc
+        </div>
+        <div class="badge">
+          Memory: O(1) Const
+        </div>
+      </div>
+    </header>
+
+    <!-- Interactive Action Bar -->
+    <div class="control-bar">
+      <div class="btn-group">
+        <button class="btn btn-primary" id="toggleStreamBtn">
+          ▶ Auto Stream
+        </button>
+        <button class="btn" id="sendNormalBtn">
+          + Valid Order
+        </button>
+        <button class="btn btn-warning" id="sendTransientBtn">
+          ↻ Retry Demo (ID ...7)
+        </button>
+        <button class="btn btn-danger" id="sendBadPriceBtn">
+          ✕ Poison Pill (-$49)
+        </button>
+        <button class="btn btn-danger" id="sendCorruptBtn">
+          ⚠ Corrupt Avro Bytes
+        </button>
+      </div>
+      <div class="btn-group">
+        <button class="btn" id="clearFeedsBtn">
+          Clear Feeds
+        </button>
+      </div>
+    </div>
+
+    <!-- Live Metric Cards -->
+    <div class="metrics-grid">
+      <div class="metric-card avg">
+        <div class="metric-label">
+          <span>Running Average</span>
+          <span>USD</span>
+        </div>
+        <div class="metric-value" id="valAvg">$0.00</div>
+        <div class="metric-sub">Updated per message (O(1))</div>
+      </div>
+
+      <div class="metric-card orders">
+        <div class="metric-label">
+          <span>Processed Orders</span>
+          <span>Count</span>
+        </div>
+        <div class="metric-value" id="valCount">0</div>
+        <div class="metric-sub">Topic: orders</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-label">
+          <span>Last Order Price</span>
+          <span>Single</span>
+        </div>
+        <div class="metric-value" id="valLastPrice">$0.00</div>
+        <div class="metric-sub" id="valLastItem">No orders yet</div>
+      </div>
+
+      <div class="metric-card dlq">
+        <div class="metric-label">
+          <span>Quarantined</span>
+          <span>DLQ</span>
+        </div>
+        <div class="metric-value" id="valDlqCount">0</div>
+        <div class="metric-sub">Topic: orders.DLQ</div>
+      </div>
+    </div>
+
+    <!-- Visual Pipeline Strip -->
+    <div class="pipeline-flow">
+      <div class="node" id="nodeProducer">
+        <div class="node-title">Producer</div>
+        <div class="node-sub">Avro Serializer</div>
+      </div>
+      <div class="flow-arrow">➔</div>
+      <div class="node" id="nodeRegistry">
+        <div class="node-title">Schema Registry</div>
+        <div class="node-sub">:8081 / cached</div>
+      </div>
+      <div class="flow-arrow">➔</div>
+      <div class="node active" id="nodeTopic">
+        <div class="node-title">Kafka: orders</div>
+        <div class="node-sub">Binary stream</div>
+      </div>
+      <div class="flow-arrow">➔</div>
+      <div class="node" id="nodeConsumer">
+        <div class="node-title">Consumer</div>
+        <div class="node-sub">Retry (1s, 2s, 4s)</div>
+      </div>
+      <div class="flow-arrow">➔</div>
+      <div class="node" id="nodeAggregator">
+        <div class="node-title">Aggregator</div>
+        <div class="node-sub">O(1) Running Avg</div>
+      </div>
+      <div class="flow-arrow">➔</div>
+      <div class="node" id="nodeDlq">
+        <div class="node-title">orders.DLQ</div>
+        <div class="node-sub">JSON Envelopes</div>
+      </div>
+    </div>
+
+    <!-- Three Split Panels -->
+    <div class="panels-grid">
+      <!-- Panel 1: Valid Orders -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>📦</span> Valid Orders Stream
+          </div>
+          <span class="panel-count" id="countOrders">0</span>
+        </div>
+        <div class="panel-body" id="feedOrders">
+          <div class="empty-state">Waiting for orders...</div>
+        </div>
+      </div>
+
+      <!-- Panel 2: Retry & Backoff Monitor -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>↻</span> Retry & Backoff Monitor
+          </div>
+          <span class="panel-count" id="countRetries">0</span>
+        </div>
+        <div class="panel-body" id="feedRetries">
+          <div class="empty-state">No transient errors logged</div>
+        </div>
+      </div>
+
+      <!-- Panel 3: Dead Letter Queue (DLQ) -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>☠</span> Dead Letter Queue (DLQ)
+          </div>
+          <span class="panel-count" id="countDlq">0</span>
+        </div>
+        <div class="panel-body" id="feedDlq">
+          <div class="empty-state">DLQ empty (0 quarantined)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Convergence Chart -->
+    <div class="chart-section">
+      <div class="chart-header">
+        <div class="panel-title">
+          <span>📈</span> Price Convergence Graph
+        </div>
+        <div class="chart-legend">
+          <div class="legend-item">
+            <span class="legend-dot" style="background: #818cf8;"></span>
+            <span>Order Price</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot" style="background: #4f46e5;"></span>
+            <span>Running Average</span>
+          </div>
+        </div>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="priceChart" width="1350" height="150"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

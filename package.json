@@ -10,7 +10,8 @@
     "produce:bad-price": "node producer/producer.js --bad-price",
     "produce:corrupt": "node producer/producer.js --corrupt",
     "produce:transient": "node producer/producer.js --transient",
-    "test": "node test/pipeline.test.js"
+    "test": "node test/pipeline.test.js",
+    "ui": "node ui/server.js"
   },
   "dependencies": {
     "@kafkajs/confluent-schema-registry": "^4.1.0",
